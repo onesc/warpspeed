@@ -1,5 +1,4 @@
 class Preload extends Phaser.State {
-
 	preload() {
 		this.load.image('bone', 'bone.png');
 	}
