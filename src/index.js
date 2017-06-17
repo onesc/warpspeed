@@ -27,13 +27,21 @@ const Hero = class extends Phaser.Sprite {
 
         if (this.mode === 'move') {
             this.y -= 1;
-            if (this.checkRangeForUnits(game.enemies) !== false) { this.mode = "attacking"; }
-            return;
+            const aggroCheck = this.checkRangeForUnits(game.enemies);
+
+            if (aggroCheck) { 
+                this.currentTarget = aggroCheck;
+                this.mode = "attacking"; 
+            }
         }
 
         if (this.mode === 'attacking') {
-            console.log("current target is ", this.currentTarget)
             this.fireAt(this.currentTarget)
+
+            const aggroCheck = this.checkRangeForUnits(game.enemies);
+            if (!aggroCheck) { 
+                this.mode = 'move';
+            };
         }
     }
 
@@ -42,15 +50,12 @@ const Hero = class extends Phaser.Sprite {
         unitGroup.forEachAlive((unit) => {
             if (this.isInRange(unit)) {
                 foundUnit = unit;
-                this.currentTarget = foundUnit;
-                // this.fireAt(unit);
             }
         })
         return foundUnit;
     }
 
     fireAt(unit){
-        console.log("finna fire at ", unit);
         if (game.time.now > this.nextFire) {
             this.nextFire = game.time.now + this.fireRate;
             const fireball = game.fireballs.getFirstDead();
