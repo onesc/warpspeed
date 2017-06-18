@@ -22,7 +22,7 @@ const Hero = class extends Phaser.Sprite {
     create() {}
 
     update() {  
-        if (this.indicateRange === true) {
+        if (this.indicateRange) {
             if (!this.renderedRange) { 
                 this.renderedRange = game.graphics.drawCircle(0, 0, this.range * 2); 
             }
@@ -32,29 +32,34 @@ const Hero = class extends Phaser.Sprite {
         } 
 
         if (this.mode === 'move') {
-            this.y -= 1;
-
-            const aggroCheck = this.checkRangeForUnits(game.enemies);
-            if (aggroCheck) { 
-                this.currentTarget = aggroCheck;
+            const foundEnemy = this.findUnitInRange(game.enemies);
+            if (foundEnemy) { 
+                this.currentTarget = foundEnemy;
                 this.mode = "attacking"; 
+            } else {
+                this.y -= 1;    
             }
         }
 
         if (this.mode === 'attacking') {
-            this.fireAt(this.currentTarget);
-
-            const aggroCheck = this.checkRangeForUnits(game.enemies);
-            if (!aggroCheck) { 
-                this.mode = 'move';
-            }
+            if (this.currentTarget && this.isInRangeOf(this.currentTarget)) { 
+                this.fireAt(this.currentTarget)
+            } else {
+                this.currentTarget = null;
+                this.mode = 'move'
+            };
         }
     }
 
-    checkRangeForUnits(unitGroup) {
+
+    isInRangeOf(unit) {
+        return game.physics.arcade.distanceBetween(this, unit) < this.range + 30;
+    }
+
+    findUnitInRange(unitGroup) {
         let foundUnit = false;
         unitGroup.forEachAlive((unit) => {
-            if (game.physics.arcade.distanceBetween(this, unit) < this.range + 30) {
+            if (this.isInRangeOf(unit)) {
                 foundUnit = unit;
             }
         })
@@ -108,7 +113,7 @@ const GameState = class extends Phaser.State {
         game.load.image('hero', 'hero.png');
         game.load.image('fireball', 'fireball.png');
         game.stage.backgroundColor = '#182d3b';
-
+        game.stage.disableVisibilityChange = true;
     }
     create() {
         game.projectiles = [];
@@ -123,6 +128,9 @@ const GameState = class extends Phaser.State {
         game.heroes.physicsBodyType = Phaser.Physics.ARCADE;
 
         game.enemies = game.add.group(); 
+        game.enemies.add(new Enemy(game, 300, 100, 'warrior'));
+        game.enemies.add(new Enemy(game, 300, 100, 'warrior'));
+        game.enemies.add(new Enemy(game, 300, 100, 'warrior'));
         game.enemies.add(new Enemy(game, 300, 100, 'warrior'));
         game.enemies.physicsBodyType = Phaser.Physics.ARCADE;
 
