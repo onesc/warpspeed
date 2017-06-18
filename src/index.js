@@ -1,34 +1,40 @@
 const Hero = class extends Phaser.Sprite {
     constructor(game, x, y, asset, frame, health, bulletSpeed) {
         super(game, x, y, asset, frame);
-        this.inputEnabled = true;
-        this.input.enableDrag(true);
-        this.mode = 'move'
+        
+        // phaser api
         this.anchor.x = 0.5;
         this.anchor.y = 0.5
-        this.range = 300;
         this.scale.x = 0.5
         this.scale.y = 0.5
-
+        this.inputEnabled = true;
+        this.input.enableDrag(true);
+        
+        // not phaser api
+        this.mode = 'move'
         this.fireRate = 1500;
         this.nextFire = 0;
         this.currentTarget = null;
-        // this.fired = false;
-
-        this.renderedRange = game.graphics.drawCircle(0, 0, this.range * 2);
+        this.range = 300;
+        this.indicateRange = true;
     }
 
-    create(){
-    }
+    create() {}
 
     update() {  
-        this.renderedRange.x = this.x;
-        this.renderedRange.y = this.y;
+        if (this.indicateRange === true) {
+            if (!this.renderedRange) { 
+                this.renderedRange = game.graphics.drawCircle(0, 0, this.range * 2); 
+            }
+
+            this.renderedRange.x = this.x;
+            this.renderedRange.y = this.y;
+        } 
 
         if (this.mode === 'move') {
             this.y -= 1;
-            const aggroCheck = this.checkRangeForUnits(game.enemies);
 
+            const aggroCheck = this.checkRangeForUnits(game.enemies);
             if (aggroCheck) { 
                 this.currentTarget = aggroCheck;
                 this.mode = "attacking"; 
@@ -36,19 +42,19 @@ const Hero = class extends Phaser.Sprite {
         }
 
         if (this.mode === 'attacking') {
-            this.fireAt(this.currentTarget)
+            this.fireAt(this.currentTarget);
 
             const aggroCheck = this.checkRangeForUnits(game.enemies);
             if (!aggroCheck) { 
                 this.mode = 'move';
-            };
+            }
         }
     }
 
     checkRangeForUnits(unitGroup) {
         let foundUnit = false;
         unitGroup.forEachAlive((unit) => {
-            if (this.isInRange(unit)) {
+            if (game.physics.arcade.distanceBetween(this, unit) < this.range + 30) {
                 foundUnit = unit;
             }
         })
@@ -56,17 +62,13 @@ const Hero = class extends Phaser.Sprite {
     }
 
     fireAt(unit){
+        const fireball = game.fireballs.getFirstDead();
         if (game.time.now > this.nextFire) {
             this.nextFire = game.time.now + this.fireRate;
-            const fireball = game.fireballs.getFirstDead();
+            fireball.target = unit;
             fireball.reset(this.x, this.y);
             fireball.scale.setTo(0.03, 0.03)
-            game.physics.arcade.moveToObject(fireball, unit);
         }
-    }
-
-    isInRange(unit){
-        return (game.physics.arcade.distanceBetween(this, unit) < this.range + 30)
     }
 }
 
@@ -76,7 +78,6 @@ const Enemy = class extends Phaser.Sprite {
         super(game, x, y, asset, frame);
         this.inputEnabled = true;
         this.input.enableDrag(true);
-        this.mode = '';
         this.anchor.x = 0.5;
         this.anchor.y = 0.5;
         this.scale.setTo(0.125, 0.125);
@@ -86,24 +87,11 @@ const Enemy = class extends Phaser.Sprite {
     }
 
     update() {
-        if (this.mode === 'move') {
-            this.y -= 1;
-            return;
-        }
-
-        if (this.mode === 'look') {
-            game.heroes.forEachAlive((hero) => {
-                // console.log("I can see ", hero.x);
-            })
-        }
-
-        // console.log("no mode")
     }
 }
 
 const Preload = class {
     preload() {
-       
     }
     create() {
         this.state.start('GameState');
@@ -123,121 +111,49 @@ const GameState = class extends Phaser.State {
 
     }
     create() {
-        // game.boneSprite = createBone(game);
-        // game.world.add(new BoneWarrior(game, 300, 300, 'warrior'))
+        game.projectiles = [];
 
         game.graphics = game.add.graphics(0,0);
         game.graphics.lineStyle(1, 0x00ff00, 1);
 
+        game.physics.startSystem(Phaser.Physics.ARCADE)
+
         game.heroes = game.add.group();
+        game.heroes.add(new Hero(game, 300, 800, 'hero'))
+        game.heroes.physicsBodyType = Phaser.Physics.ARCADE;
+
         game.enemies = game.add.group(); 
+        game.enemies.add(new Enemy(game, 300, 100, 'warrior'));
+        game.enemies.physicsBodyType = Phaser.Physics.ARCADE;
+
         game.fireballs = game.add.group();
-        
         game.fireballs.enableBody = true;
         game.fireballs.physicsBodyType = Phaser.Physics.ARCADE;
+        game.projectiles.push(game.fireballs);
+
         game.fireballs.createMultiple(50, 'fireball');
         game.fireballs.setAll('checkWorldBounds', true);
         game.fireballs.setAll('outOfBoundsKill', true);
         game.fireballs.setAll('anchor.x', 0.5);
         game.fireballs.setAll('anchor.y', 0.5);
-        // game.fireballs.scale.setTo(0.03, 0.03)
+    } 
 
-        game.heroes.add(new Hero(game, 300, 800, 'hero'))
-        game.enemies.add(new Enemy(game, 300, 100, 'warrior'));
-
-    }  
     render() {
         game.debug.inputInfo(32, 32);
     }
+
     update() {
-        // game.boneSprite.y += 1;
+        game.projectiles.forEach((spriteGroup) => {
+            spriteGroup.forEachAlive((projectile) => {
+                game.physics.arcade.moveToObject(projectile, projectile.target);
+                if (Phaser.Rectangle.intersects(projectile.getBounds(), projectile.target.getBounds())) {
+                    projectile.kill();
+                }
+            })
+        })
     }
 }
 
-var game = new Phaser.Game(540, 960, Phaser.AUTO);
+const game = new Phaser.Game(540, 960, Phaser.AUTO);
 game.state.add('GameState', GameState, false);
 game.state.start('GameState');
-
-
-
-
-
-
-// const createBone = (gameObj) => {
-//     const thug = () => {
-//         const boneSprite = gameObj.add.sprite(220, 220, 'bone');
-//         boneSprite.inputEnabled = true;
-//         boneSprite.input.enableDrag(true);
-//         return boneSprite
-//     }
-//     return thug();
-// }
-
-
-
-
-// game.state.add('PreloadState', Preload, false);
-// function preload() {
-//     game.load.image('bone', 'bone.png');
-// }
-
-// function create() {
-//     game.stage.backgroundColor = '#182d3b';
-//     game.boneSprite = createBoneThug(game);
-// }
-
-// function update () {
-//     game.boneSprite.x += 1;
-// }
-
-// function render () {
-//     game.debug.inputInfo(32, 32);
-// }
-
-
-
-
-
-// import GameState from 'states/GameState';
-// import Preload from 'states/Preload';
-
-// class Game extends Phaser.Game {
-
-//  constructor() {
-//      super(500, 500, Phaser.AUTO, 'content', null);
-//      this.state.add('Preload', Preload, null);
-//      this.state.add('GameState', GameState, false);
-//      this.state.start('GameState');
-//  }
-
-// }
-
-// new Game();
-
-// import Bonethug from 'objects/bonethug';
-
-
-
-
-
-
-
-
-
-
-
-
-
-// import GameState from 'states/GameState';
-// import Preload from 'states/Preload';
-
-// class Game extends Phaser.Game {
-
-//  constructor() {
-//      super(500, 500, Phaser.AUTO, 'content', null);
-//      this.state.add('Preload', Preload, null);
-//      this.state.add('GameState', GameState, false);
-//      this.state.start('GameState');
-//  }
-
-// }
